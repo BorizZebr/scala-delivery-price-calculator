@@ -15,25 +15,13 @@ class DeliveryPriceServiceSpec extends FlatSpec
 
   override def config = testConfig
   override val logger = NoLogging
-  override var model: PriceModel = (_) => 0
+  override val model: PriceModel = (_) => 0
 
   it should "respond with double value on correct price request" in {
     Get(s"/price/250") ~> routes ~> check {
       status shouldBe OK
       contentType shouldBe `application/json`
       responseAs[PriceInfo] shouldBe PriceInfo(250, 0)
-    }
-  }
-
-  it should "respond with bad request on incorrect weight format" in {
-    Get("/thrash/thrash") ~> routes ~> check {
-      status shouldBe BadRequest
-      responseAs[String].length should be > 0
-    }
-
-    Get("/price/thrash") ~> routes ~> check {
-      status shouldBe BadRequest
-      responseAs[String].length should be > 0
     }
   }
 }

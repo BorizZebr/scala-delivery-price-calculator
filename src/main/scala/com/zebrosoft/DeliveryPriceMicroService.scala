@@ -1,7 +1,5 @@
 package com.zebrosoft
 
-import java.io.PrintWriter
-
 import akka.actor.ActorSystem
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.Http
@@ -13,7 +11,6 @@ import spray.json._
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.StdIn
-import scala.util.Random
 
 /**
   * Created by borisbondarenko on 19.07.16.
@@ -25,7 +22,7 @@ trait DeliveryPriceService extends DeliveryPriceModel
     with SprayJsonSupport
     with DefaultJsonProtocol {
 
-  implicit val priceIbfoFormat = jsonFormat2(PriceInfo)
+  implicit val priceInfoFormat = jsonFormat2(PriceInfo)
   implicit val system: ActorSystem
   implicit val materializer: ActorMaterializer
   implicit def executor: ExecutionContextExecutor
@@ -43,7 +40,7 @@ trait DeliveryPriceService extends DeliveryPriceModel
 
 object DeliveryPriceMicroService extends App
     with DeliveryPriceService
-    with LinearModelTrainer {
+    with StaticallyTrainedLinearModel {
 
   override implicit val system = ActorSystem("delivery-price-system")
   override implicit val materializer = ActorMaterializer()
@@ -54,8 +51,6 @@ object DeliveryPriceMicroService extends App
   val port = config.getInt("http.port")
 
   override val logger = Logging(system, getClass)
-
-  override var model = trainModel(Nil)
 
   val bindingFuture = Http().bindAndHandle(routes, interface, port)
 
