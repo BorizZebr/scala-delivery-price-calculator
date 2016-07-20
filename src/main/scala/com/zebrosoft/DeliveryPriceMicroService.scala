@@ -15,9 +15,6 @@ import scala.io.StdIn
 /**
   * Created by borisbondarenko on 19.07.16.
   */
-
-case class PriceInfo(weight: Double, price: Double)
-
 trait DeliveryPriceService extends DeliveryPriceModel
     with SprayJsonSupport
     with DefaultJsonProtocol {
@@ -40,7 +37,7 @@ trait DeliveryPriceService extends DeliveryPriceModel
 
 object DeliveryPriceMicroService extends App
     with DeliveryPriceService
-    with StaticallyTrainedLinearModel {
+    with LinearModelBuilder {
 
   override implicit val system = ActorSystem("delivery-price-system")
   override implicit val materializer = ActorMaterializer()
@@ -51,6 +48,37 @@ object DeliveryPriceMicroService extends App
   val port = config.getInt("http.port")
 
   override val logger = Logging(system, getClass)
+
+  override val model: PriceModel = {
+
+    import scala.io.Source
+
+    // read postPrices
+    val postPrices: Vector[PostPrice] = {
+      val pricesSource = Source.fromFile(getClass.getClassLoader.getResource("prices.csv").toURI)
+      val postPrices = pricesSource.getLines.toArray.map(_.split(",")).map { x =>
+        (x(0).toDouble, x(1).toDouble)
+      }
+      pricesSource.close
+
+      (postPrices zip postPrices.tail).map { case(a, b) =>
+        PostPrice(a._1, b._1, b._2)
+      }.toVector
+    }
+
+    // read packages stats
+    val packages: Vector[Double] = {
+      val packagesSource = Source.fromFile(getClass.getClassLoader.getResource("packages.csv").toURI)
+      val packages = packagesSource.getLines.toArray.map(_.toDouble)
+      packagesSource.close
+      packages.toVector
+    }
+
+    // fixed point
+    val fixedPoint = (config.getDouble("service.fixedPoint.weight"), config.getDouble("service.fixedPoint.price"))
+
+    buildModel(postPrices, packages, fixedPoint)
+  }
 
   val bindingFuture = Http().bindAndHandle(routes, interface, port)
 
