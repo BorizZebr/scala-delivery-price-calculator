@@ -15,7 +15,7 @@ class DeliveryPriceServiceSpec extends FlatSpec
 
   override def config = testConfig
   override val logger = NoLogging
-  override val model: PriceModel = (_) => 0
+  override val model: PriceModel = (x) => x *2
 
   it should "respond with double value on correct price request" in {
     Get(s"/price/250") ~> routes ~> check {
