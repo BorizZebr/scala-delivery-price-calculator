@@ -15,8 +15,7 @@ import scala.io.{Source, StdIn}
 /**
   * Created by borisbondarenko on 19.07.16.
   */
-trait DeliveryPriceService extends ModelBuilder
-    with SprayJsonSupport
+trait DeliveryPriceService extends SprayJsonSupport
     with DefaultJsonProtocol {
 
   type PriceModel = Double => Double
@@ -29,22 +28,20 @@ trait DeliveryPriceService extends ModelBuilder
   def config: Config
   val logger: LoggingAdapter
 
-  val postModel: PostModel
-  def packages: Vector[Double]
-
-  val model: PriceModel = buildModel(postModel, packages)
+  val model: PriceModel
 
   val routes =
     pathPrefix("price" / DoubleNumber) { weight =>
       get {
-        complete(PriceInfo(weight, model(weight)))
+        val result = if (weight > 0) model(weight) else 0
+        complete(PriceInfo(weight, result))
       }
     }
 }
 
 trait PackageStatsPersister {
 
-  val pathPack: String = "packages.csv"
+  val pathPack: String
 
   def getPackages: Vector[Double] = {
     val packagesSource = Source.fromFile(getClass.getClassLoader.getResource(pathPack).toURI)
@@ -64,24 +61,14 @@ trait ModelBuilder {
       postModel: PostModel,
       packages: Vector[Double]): Double => Double = {
 
-    println("Building initial model...")
-
-    // which post interval weight is belong to
-    def postPriceByWeight(w: Double): Double =
-      postModel.prices.foldLeft(0) { case (a, v) =>
-        if (v.minWeight < w && w < v.maxWeight) return v.price else a
-      }
-
     val n = packages.length
     val sumW = packages.sum
 
-    val s = packages.map(postPriceByWeight).sum
+    val s = packages.map(postModel.deliveryPrice).sum
     val f = postModel.fixedPoint
 
     val k = (s - f.p * n) / (sumW - n * f.w)
     val b = f.p - k * f.w
-
-    println(s"Modal has been built: k = $k, b = $b")
 
     (w: Double) => k * w + b
   }
@@ -89,19 +76,21 @@ trait ModelBuilder {
 
 object DeliveryPriceMicroService extends App
   with DeliveryPriceService
+  with ModelBuilder
   with PackageStatsPersister {
 
   override implicit val system = ActorSystem("delivery-price-system")
   override implicit val materializer = ActorMaterializer()
   override implicit val executor = system.dispatcher
 
+  override val pathPack: String = "packages.csv"
   override val logger = Logging(system, getClass)
   override val config = ConfigFactory.load()
   val interface = config.getString("http.interface")
   val port = config.getInt("http.port")
 
   // read postPrices
-  override val postModel: PostModel = {
+  val postModel: PostModel = {
 
     import scala.collection.JavaConversions._
 
@@ -117,8 +106,7 @@ object DeliveryPriceMicroService extends App
       }.toVector)
   }
 
-  // read packages stats
-  override def packages: Vector[Double] = getPackages
+  override val model: PriceModel = buildModel(postModel, getPackages)
 
   val bindingFuture = Http().bindAndHandle(routes, interface, port)
 

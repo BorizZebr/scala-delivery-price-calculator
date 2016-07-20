@@ -11,17 +11,25 @@ import akka.http.scaladsl.model.ContentTypes._
 class DeliveryPriceServiceSpec extends FlatSpec
     with Matchers
     with ScalatestRouteTest
-    with DeliveryPriceService{
+    with DeliveryPriceService {
 
   override def config = testConfig
   override val logger = NoLogging
-  override val model: PriceModel = (x) => x *2
+  override val model: PriceModel = (x) => x * 2
 
-  it should "respond with double value on correct price request" in {
+  it should "respond with correct value on correct price request" in {
     Get(s"/price/250") ~> routes ~> check {
       status shouldBe OK
       contentType shouldBe `application/json`
-      responseAs[PriceInfo] shouldBe PriceInfo(250, 0)
+      responseAs[PriceInfo] shouldBe PriceInfo(250.0, 500.0)
+    }
+  }
+
+  it should "respond with zero value on zero or less then zero weight" in {
+    Get(s"/price/-250") ~> routes ~> check {
+      status shouldBe OK
+      contentType shouldBe `application/json`
+      responseAs[PriceInfo] shouldBe PriceInfo(-250.0, 0.0)
     }
   }
 }
