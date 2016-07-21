@@ -16,4 +16,5 @@ libraryDependencies ++= {
     "org.scalatest"     %% "scalatest" % scalaTestV % "test"
   )
 }
-    
+
+enablePlugins(JavaAppPackaging)
