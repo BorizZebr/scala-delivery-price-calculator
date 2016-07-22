@@ -12,9 +12,19 @@ libraryDependencies ++= {
     "com.typesafe.akka" %% "akka-stream" % akkaV,
     "com.typesafe.akka" %% "akka-http-experimental" % akkaV,
     "com.typesafe.akka" %% "akka-http-spray-json-experimental" % akkaV,
-    "com.typesafe.akka" %% "akka-http-testkit" % akkaV,
+    "com.typesafe.akka" %% "akka-http-testkit" % akkaV % "test",
     "org.scalatest"     %% "scalatest" % scalaTestV % "test"
   )
 }
 
 enablePlugins(JavaAppPackaging)
+
+unmanagedResourceDirectories in Runtime <+= baseDirectory(_ / "src" / "main" / "data")
+
+mappings in Universal <++= sourceDirectory map { src =>
+  Seq(
+    src / "main" / "resources" / "prod.conf" -> "conf/application.conf",
+    src / "main" / "data" / "packages.csv" -> "data/packages.csv")
+}
+
+scriptClasspath := Seq("../conf/", "../data/") ++ scriptClasspath.value
