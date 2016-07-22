@@ -12,16 +12,8 @@ class ModelBuilderSpec extends FunSpec
 
   describe("A flat model") {
 
-    val postModel = PostModel(
-      Point(0, 1),
-      Vector(
-        PostPrice(0, 10, 1),
-        PostPrice(10, 20, 1),
-        PostPrice(20, 30, 1)))
-
     val packages: Vector[Double] = Vector(5, 15, 25)
-
-    val model = buildModel(postModel, packages)
+    val model = buildModel(Point(0, 1), packages)(_ => 1.0)
 
     it("should have a result 1 on 0 weight") {
       assert(model(0) == 1)
@@ -46,27 +38,22 @@ class ModelBuilderSpec extends FunSpec
 
   describe("A non-flat model") {
 
-    val postModel = PostModel(
-      Point(0, 50),
-      Vector(
-        PostPrice(0, 100, 60),
-        PostPrice(100, 200, 100),
-        PostPrice(200, 1000, 300)))
+    val postPrice: Double => Double = x => x * 10.0 - 50
 
     val packages: Vector[Double] = {
       val rnd = new Random()
       Vector.fill(100)(rnd.nextDouble * 1000)
     }
 
-    val model = buildModel(postModel, packages)
+    val model = buildModel(Point(0, 50), packages)(postPrice)
 
     it("should be 50 in 0 weight (fixed point)") {
-      assert(model(0) == 50)
+      assert(model(0.0) == 50.0)
     }
 
     it("should not loose our money:) -- difference between model and post less then 1%") {
       val sumByModel = packages.map(model).sum
-      val sumByPost = packages.map(postModel.deliveryPrice).sum
+      val sumByPost = packages.map(postPrice).sum
       assert(1.0 - sumByModel / sumByPost < 0.01, sumByModel)
     }
   }

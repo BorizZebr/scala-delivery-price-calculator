@@ -8,6 +8,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import com.typesafe.config.{Config, ConfigFactory}
 import spray.json._
+import akka.http.scaladsl.model.StatusCodes._
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.{Source, StdIn}
@@ -18,25 +19,32 @@ import scala.io.{Source, StdIn}
 trait DeliveryPriceService extends SprayJsonSupport
     with DefaultJsonProtocol {
 
-  type PriceModel = Double => Double
+  type PriceFunction = Double => Double
+  type PriceModel = (PriceFunction, PriceFunction)
 
   implicit val priceInfoFormat = jsonFormat3(PriceInfo)
   implicit val system: ActorSystem
   implicit val materializer: ActorMaterializer
+
   implicit def executor: ExecutionContextExecutor
 
   def config: Config
+
   val logger: LoggingAdapter
 
-  val modelPrice: PriceModel
-  val postPrice: PriceModel
+  val models: Map[String, PriceModel]
 
   val routes =
-    pathPrefix("price" / DoubleNumber) { weight =>
+    pathPrefix("price" / Segment / DoubleNumber) { (modelName, weight) =>
       get {
-        val mPrice = if (weight > 0) modelPrice(weight) else 0
-        val pPrice = if (weight > 0) postPrice(weight) else 0
-        complete(PriceInfo(weight, mPrice, pPrice))
+        models.get(modelName) match {
+          case Some(m) =>
+            val mPrice = if (weight > 0) m._1(weight) else 0
+            val pPrice = if (weight > 0) m._2(weight) else 0
+            complete(PriceInfo(weight, mPrice, pPrice))
+
+          case None => complete(BadRequest, "")
+        }
       }
     }
 }
@@ -60,14 +68,14 @@ trait PackageStatsPersister {
 trait ModelBuilder {
 
   def buildModel(
-      postModel: PostModel,
-      packages: Vector[Double]): Double => Double = {
+      f: Point,
+      packages: Vector[Double])
+      (postPrice: Double => Double): Double => Double = {
 
     val n = packages.length
     val sumW = packages.sum
 
-    val s = packages.map(postModel.deliveryPrice).sum
-    val f = postModel.fixedPoint
+    val s = packages.map(postPrice).sum
 
     val k = (s - f.p * n) / (sumW - n * f.w)
     val b = f.p - k * f.w
@@ -91,25 +99,30 @@ object DeliveryPriceMicroService extends App
   val interface = config.getString("http.interface")
   val port = config.getInt("http.port")
 
-  // read postPrices
-  val postModel: PostModel = {
 
+  override val models: Map[String, PriceModel] = {
     import scala.collection.JavaConversions._
 
-    val cConfig = config.getConfig("postModel.fixedPoint")
-    val postPrices = config.getConfigList("postModel.prices").map { x =>
-      (x.getDouble("w"), x.getDouble("p"))
-    }
+    config.getConfigList("postModel").map { conf =>
+      val name = conf.getString("name")
+      val cConfig = conf.getConfig("fixedPoint")
 
-    PostModel(
-      Point(cConfig.getDouble("w"), cConfig.getDouble("p")),
-      (postPrices zip postPrices.tail).map { case(a, b) =>
-        PostPrice(a._1, b._1, b._2)
-      }.toVector)
+      val fixedPoint = Point(cConfig.getDouble("w"), cConfig.getDouble("p"))
+      val postPrices = conf.getConfigList("prices").map { x =>
+        (x.getDouble("w"), x.getDouble("p"))
+      }
+
+      val postPriceFunction: Double => Double = w =>
+        postPrices.find(w < _._1) match {
+          case Some(x) => x._2
+          case None => 0.0
+        }
+
+      val modelPriceFunction = buildModel(fixedPoint, getPackages)(postPriceFunction)
+
+      name -> (modelPriceFunction, postPriceFunction)
+    }.toMap
   }
-
-  override val modelPrice: PriceModel = buildModel(postModel, getPackages)
-  override val postPrice: PriceModel = postModel.deliveryPrice
 
   val bindingFuture = Http().bindAndHandle(routes, interface, port)
 
