@@ -6,7 +6,7 @@ package com.zebrosoft
 
 case class Point(w: Double, p: Double)
 
-case class PriceInfo(weight: Double, price: Double)
+case class PriceInfo(weight: Double, priceByModel: Double, priceByPost: Double)
 
 case class PostPrice(minWeight: Double, maxWeight: Double, price: Double)
 

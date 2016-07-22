@@ -20,7 +20,7 @@ trait DeliveryPriceService extends SprayJsonSupport
 
   type PriceModel = Double => Double
 
-  implicit val priceInfoFormat = jsonFormat2(PriceInfo)
+  implicit val priceInfoFormat = jsonFormat3(PriceInfo)
   implicit val system: ActorSystem
   implicit val materializer: ActorMaterializer
   implicit def executor: ExecutionContextExecutor
@@ -28,13 +28,15 @@ trait DeliveryPriceService extends SprayJsonSupport
   def config: Config
   val logger: LoggingAdapter
 
-  val model: PriceModel
+  val modelPrice: PriceModel
+  val postPrice: PriceModel
 
   val routes =
     pathPrefix("price" / DoubleNumber) { weight =>
       get {
-        val result = if (weight > 0) model(weight) else 0
-        complete(PriceInfo(weight, result))
+        val mPrice = if (weight > 0) modelPrice(weight) else 0
+        val pPrice = if (weight > 0) postPrice(weight) else 0
+        complete(PriceInfo(weight, mPrice, pPrice))
       }
     }
 }
@@ -106,7 +108,8 @@ object DeliveryPriceMicroService extends App
       }.toVector)
   }
 
-  override val model: PriceModel = buildModel(postModel, getPackages)
+  override val modelPrice: PriceModel = buildModel(postModel, getPackages)
+  override val postPrice: PriceModel = postModel.deliveryPrice
 
   val bindingFuture = Http().bindAndHandle(routes, interface, port)
 

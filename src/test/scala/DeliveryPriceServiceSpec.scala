@@ -15,13 +15,14 @@ class DeliveryPriceServiceSpec extends FlatSpec
 
   override def config = testConfig
   override val logger = NoLogging
-  override val model: PriceModel = (x) => x * 2
+  override val modelPrice: PriceModel = (x) => x * 2
+  override val postPrice: PriceModel = (x) => x * 4
 
   it should "respond with correct value on correct price request" in {
     Get(s"/price/250") ~> routes ~> check {
       status shouldBe OK
       contentType shouldBe `application/json`
-      responseAs[PriceInfo] shouldBe PriceInfo(250.0, 500.0)
+      responseAs[PriceInfo] shouldBe PriceInfo(250.0, 500.0, 1000.0)
     }
   }
 
@@ -29,7 +30,7 @@ class DeliveryPriceServiceSpec extends FlatSpec
     Get(s"/price/-250") ~> routes ~> check {
       status shouldBe OK
       contentType shouldBe `application/json`
-      responseAs[PriceInfo] shouldBe PriceInfo(-250.0, 0.0)
+      responseAs[PriceInfo] shouldBe PriceInfo(-250.0, 0.0, 0.0)
     }
   }
 }
