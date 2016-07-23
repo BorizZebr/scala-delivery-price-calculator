@@ -1,6 +1,6 @@
 import akka.event.NoLogging
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import com.zebrosoft.{DeliveryPriceService, PriceInfo}
+import com.zebrosoft.{DeliveryPriceService, PriceInfo, PriceModel}
 import org.scalatest.{FlatSpec, Matchers}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model.ContentTypes._
@@ -16,8 +16,11 @@ class DeliveryPriceServiceSpec extends FlatSpec
   override def config = testConfig
   override val logger = NoLogging
 
-  override val models: Map[String, (PriceFunction, PriceFunction)] = Map(
-    "AZAZA" -> ((x: Double) => x * 2, (x: Double) => x * 4))
+  override def getPackages: Vector[Double] = Vector.empty
+  override def storePackage(w: Double): Unit = ()
+
+  override def rebuildModels: Map[String, PriceModel] = Map(
+    "AZAZA" -> PriceModel((x: Double) => x * 2, (x: Double) => x * 4))
 
   it should "respond with correct value on correct price request" in {
     Get(s"/price/AZAZA/250") ~> routes ~> check {

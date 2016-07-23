@@ -6,14 +6,14 @@ import scala.util.Random
 /**
   * Created by borisbondarenko on 207.16.
   */
-class ModelBuilderSpec extends FunSpec
-  with ModelBuilder
+class CalcModelBuilderSpec extends FunSpec
+  with CalcModelBuilder
   with Matchers {
 
   describe("A flat model") {
 
     val packages: Vector[Double] = Vector(5, 15, 25)
-    val model = buildModel(Point(0, 1), packages)(_ => 1.0)
+    val model = buildCalcModel(Point(0, 1), packages)(_ => 1.0)
 
     it("should have a result 1 on 0 weight") {
       assert(model(0) == 1)
@@ -45,7 +45,7 @@ class ModelBuilderSpec extends FunSpec
       Vector.fill(100)(rnd.nextDouble * 1000)
     }
 
-    val model = buildModel(Point(0, 50), packages)(postPrice)
+    val model = buildCalcModel(Point(0, 50), packages)(postPrice)
 
     it("should be 50 in 0 weight (fixed point)") {
       assert(model(0.0) == 50.0)
