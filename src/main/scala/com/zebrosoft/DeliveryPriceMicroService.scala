@@ -46,6 +46,10 @@ trait DeliveryPriceService extends SprayJsonSupport
           case None => complete(BadRequest, "")
         }
       }
+    } ~ path("models") {
+      get {
+        complete(models.keys)
+      }
     }
 }
 
@@ -99,7 +103,7 @@ object DeliveryPriceMicroService extends App
   val interface = config.getString("http.interface")
   val port = config.getInt("http.port")
 
-
+  println(s"Reading models...")
   override val models: Map[String, PriceModel] = {
     import scala.collection.JavaConversions._
 
@@ -131,4 +135,5 @@ object DeliveryPriceMicroService extends App
   bindingFuture
     .flatMap(_.unbind())
     .onComplete(_ => system.terminate())
+  println(s"Delivery price service is shut down!")
 }
