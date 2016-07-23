@@ -11,28 +11,24 @@ import com.typesafe.config.{Config, ConfigFactory}
 import spray.json._
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
-import scala.io.{Source, StdIn}
+import scala.io.StdIn
 
 /**
   * Created by borisbondarenko on 19.07.16.
   */
 trait DeliveryPriceService extends SprayJsonSupport
-    with DefaultJsonProtocol
-    with ModelsBuilder
-    with PackagesRepo {
+    with DefaultJsonProtocol {
 
   implicit val packageFormat = jsonFormat1(Package)
   implicit val priceResponseFormat = jsonFormat3(PriceResponse)
   implicit val system: ActorSystem
   implicit val materializer: ActorMaterializer
-
   implicit def executor: ExecutionContextExecutor
 
-  val postConfigs: Map[String, PostConfig]
-  var models: Map[String, PriceModel] = rebuildModels(postConfigs, getPackages)
   val logger: LoggingAdapter
-
+  var models: Map[String, PriceModel]
   def config: Config
+  def storePackage(pckg: Package)
 
   val routes =
     pathPrefix("price" / Segment / DoubleNumber) { (modelName, weight) =>
@@ -49,12 +45,7 @@ trait DeliveryPriceService extends SprayJsonSupport
     } ~ pathPrefix("package") {
       post {
         entity(as[Package]) { pckg =>
-          Future {
-            storePackage(pckg.weight)
-            models = rebuildModels(postConfigs, getPackages)
-
-            Thread.sleep(10000)
-          }
+          storePackage(pckg)
           complete(OK, "ok!")
         }
       }
@@ -67,6 +58,7 @@ trait DeliveryPriceService extends SprayJsonSupport
 
 object DeliveryPriceMicroService extends App
     with DeliveryPriceService
+    with ModelsBuilder
     with CsvPackagesRepo {
 
   override implicit val system = ActorSystem("delivery-price-system")
@@ -76,17 +68,8 @@ object DeliveryPriceMicroService extends App
   override val pathPack: String = "packages.csv"
   override val logger = Logging(system, getClass)
   override val config = ConfigFactory.load()
-  val interface = config.getString("http.interface")
-  val port = config.getInt("http.port")
 
-  override def getPackages: Vector[Double] = {
-    val packagesSource = Source.fromFile(getClass.getClassLoader.getResource(pathPack).toURI)
-    val packages = packagesSource.getLines.toArray.map(_.toDouble)
-    packagesSource.close
-    packages.toVector
-  }
-
-  override val postConfigs: Map[String, PostConfig] = {
+  val postConfigs: Map[String, PostConfig] = {
     import scala.collection.JavaConversions._
 
     config.getConfigList("postModel").map { conf =>
@@ -102,11 +85,21 @@ object DeliveryPriceMicroService extends App
     }.toMap
   }
 
+  override var models: Map[String, PriceModel] = rebuildModels(postConfigs, getPackages)
+
+  override def storePackage(pckg: Package): Unit = Future {
+    storePackage(pckg.weight)
+    models = rebuildModels(postConfigs, getPackages)
+
+    Thread.sleep(10000)
+  }
+
   println(s"Reading models...")
-
+  val interface = config.getString("http.interface")
+  val port = config.getInt("http.port")
   val bindingFuture = Http().bindAndHandle(routes, interface, port)
-
   println(s"Delivery price service is online at http://$interface:$port/\nPress RETURN to stop...")
+
   StdIn.readLine()
   bindingFuture
     .flatMap(_.unbind())

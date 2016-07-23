@@ -11,16 +11,20 @@ import akka.http.scaladsl.model.ContentTypes._
 class DeliveryPriceServiceSpec extends FlatSpec
     with Matchers
     with ScalatestRouteTest
-    with DeliveryPriceService
-    with FakeModelBuilder
-    with FakePackagesRepo {
+    with DeliveryPriceService {
 
   override def config = testConfig
   override val logger = NoLogging
-  override val postConfigs: Map[String, PostConfig] = Map.empty
+  override var models: Map[String, PriceModel] = Map(
+    "AZAZA" -> PriceModel((x: Double) => x * 2, (x: Double) => x * 4),
+    "OLOLO" -> PriceModel(_ => 100500, (x: Double) => x / 2))
+
+  var packagesStorage: Seq[Package] = Seq.empty
+  override def storePackage(pckg: Package): Unit =
+    packagesStorage = packagesStorage :+ pckg
 
   it should "respond with correct value on correct price request" in {
-    Get(s"/price/AZAZA/250") ~> routes ~> check {
+    Get("/price/AZAZA/250") ~> routes ~> check {
       status shouldBe OK
       contentType shouldBe `application/json`
       responseAs[PriceResponse] shouldBe PriceResponse(250.0, 500.0, 1000.0)
@@ -28,25 +32,37 @@ class DeliveryPriceServiceSpec extends FlatSpec
   }
 
   it should "respond with zero value on zero or less then zero weight" in {
-    Get(s"/price/AZAZA/-250") ~> routes ~> check {
+    Get("/price/AZAZA/-250") ~> routes ~> check {
       status shouldBe OK
       contentType shouldBe `application/json`
       responseAs[PriceResponse] shouldBe PriceResponse(-250.0, 0.0, 0.0)
     }
   }
-}
 
-trait FakeModelBuilder extends ModelsBuilder {
+  it should "respond with BadRequest status in case of not existing model" in {
+    Get("/price/AKAKA/100500") ~> routes ~> check {
+      status shouldBe BadRequest
+    }
+  }
 
-  override def rebuildModels(
-      configs: Map[String, PostConfig],
-      packages: Vector[Double]): Map[String, PriceModel] = Map(
-    "AZAZA" -> PriceModel((x: Double) => x * 2, (x: Double) => x * 4),
-    "OLOLO" -> PriceModel(_ => 100500, (x: Double) => x / 2))
-}
+  it should "return names of models that it has" in {
+    Get("/models") ~> routes ~> check {
+      status shouldBe OK
+      contentType shouldBe `application/json`
+      responseAs[Seq[String]] shouldBe Seq("AZAZA", "OLOLO")
+    }
+  }
 
-trait FakePackagesRepo extends PackagesRepo {
-
-  override def getPackages: Vector[Double] = Vector.empty
-  override def storePackage(w: Double): Unit = ()
+  it should "store packages" in {
+    // Arrange
+    val testPackages = Seq(Package(1.0), Package(2.0), Package(3.0))
+    // Act
+    testPackages.foreach {
+      Post("/package", _) ~> routes ~> check {
+        status shouldBe OK
+      }
+    }
+    // Assert
+    assert(testPackages == packagesStorage)
+  }
 }
