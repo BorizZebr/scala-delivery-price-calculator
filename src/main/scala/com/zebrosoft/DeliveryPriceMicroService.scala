@@ -11,26 +11,28 @@ import com.typesafe.config.{Config, ConfigFactory}
 import spray.json._
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
-import scala.io.StdIn
+import scala.io.{Source, StdIn}
 
 /**
   * Created by borisbondarenko on 19.07.16.
   */
 trait DeliveryPriceService extends SprayJsonSupport
     with DefaultJsonProtocol
-    with ModelBuilder
+    with ModelsBuilder
     with PackagesRepo {
 
-  implicit val priceInfoFormat = jsonFormat3(PriceInfo)
+  implicit val packageFormat = jsonFormat1(Package)
+  implicit val priceResponseFormat = jsonFormat3(PriceResponse)
   implicit val system: ActorSystem
   implicit val materializer: ActorMaterializer
+
   implicit def executor: ExecutionContextExecutor
 
+  val postConfigs: Map[String, PostConfig]
+  var models: Map[String, PriceModel] = rebuildModels(postConfigs, getPackages)
   val logger: LoggingAdapter
-  def config: Config
-  def rebuildModels: Map[String, PriceModel]
 
-  var models: Map[String, PriceModel] = rebuildModels
+  def config: Config
 
   val routes =
     pathPrefix("price" / Segment / DoubleNumber) { (modelName, weight) =>
@@ -39,18 +41,22 @@ trait DeliveryPriceService extends SprayJsonSupport
           case Some(m) =>
             val mPrice = if (weight > 0) m.calcModel(weight) else 0
             val pPrice = if (weight > 0) m.postModel(weight) else 0
-            complete(PriceInfo(weight, mPrice, pPrice))
+            complete(PriceResponse(weight, mPrice, pPrice))
 
           case None => complete(BadRequest, "There's no such model!")
         }
       }
-    } ~ pathPrefix("package" / DoubleNumber) { weight =>
+    } ~ pathPrefix("package") {
       post {
-        Future {
-          storePackage(weight)
-          models = rebuildModels
+        entity(as[Package]) { pckg =>
+          Future {
+            storePackage(pckg.weight)
+            models = rebuildModels(postConfigs, getPackages)
+
+            Thread.sleep(10000)
+          }
+          complete(OK, "ok!")
         }
-        complete(OK)
       }
     } ~ path("models") {
       get {
@@ -73,7 +79,14 @@ object DeliveryPriceMicroService extends App
   val interface = config.getString("http.interface")
   val port = config.getInt("http.port")
 
-  override def rebuildModels: Map[String, PriceModel] = {
+  override def getPackages: Vector[Double] = {
+    val packagesSource = Source.fromFile(getClass.getClassLoader.getResource(pathPack).toURI)
+    val packages = packagesSource.getLines.toArray.map(_.toDouble)
+    packagesSource.close
+    packages.toVector
+  }
+
+  override val postConfigs: Map[String, PostConfig] = {
     import scala.collection.JavaConversions._
 
     config.getConfigList("postModel").map { conf =>
@@ -85,10 +98,7 @@ object DeliveryPriceMicroService extends App
         Point(x.getDouble("w"), x.getDouble("p"))
       }.toVector
 
-      // building models for "name" post
-      val postPriceFunction = buildPostModel(postPrices)
-      val modelPriceFunction = buildCalcModel(fixedPoint, getPackages)(postPriceFunction)
-      name -> PriceModel(modelPriceFunction, postPriceFunction)
+      name -> PostConfig(fixedPoint, postPrices)
     }.toMap
   }
 

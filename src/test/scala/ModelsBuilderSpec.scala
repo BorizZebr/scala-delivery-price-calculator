@@ -1,16 +1,16 @@
 import com.zebrosoft._
-import org.scalatest.{FlatSpec, FunSpec, Matchers}
+import org.scalatest.{FunSpec, Matchers}
 
 import scala.util.Random
 
 /**
   * Created by borisbondarenko on 207.16.
   */
-class CalcModelBuilderSpec extends FunSpec
-  with CalcModelBuilder
+class ModelsBuilderSpec extends FunSpec
+  with ModelsBuilder
   with Matchers {
 
-  describe("A flat model") {
+  describe("A flat calc model") {
 
     val packages: Vector[Double] = Vector(5, 15, 25)
     val model = buildCalcModel(Point(0, 1), packages)(_ => 1.0)
@@ -36,7 +36,7 @@ class CalcModelBuilderSpec extends FunSpec
     }
   }
 
-  describe("A non-flat model") {
+  describe("A non-flat calc model") {
 
     val postPrice: Double => Double = x => x * 10.0 - 50
 

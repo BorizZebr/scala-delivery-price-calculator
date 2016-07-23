@@ -3,9 +3,14 @@ package com.zebrosoft
 /**
   * Created by borisbondarenko on 23.07.16.
   */
-trait ModelBuilder extends CalcModelBuilder with PostModelBuilder
+trait ModelsBuilder {
 
-trait CalcModelBuilder {
+  def rebuildModels(configs: Map[String, PostConfig], packages: Vector[Double]): Map[String, PriceModel] =
+    configs.map { case(name, PostConfig(fixedPoint, postPrices)) =>
+      val postPriceFunction = buildPostModel(postPrices)
+      val modelPriceFunction = buildCalcModel(fixedPoint, packages)(postPriceFunction)
+      name -> PriceModel(modelPriceFunction, postPriceFunction)
+    }
 
   def buildCalcModel(
       f: Point,
@@ -22,9 +27,6 @@ trait CalcModelBuilder {
 
     (w: Double) => k * w + b
   }
-}
-
-trait PostModelBuilder {
 
   def buildPostModel(postPrices: Vector[Point]): Double => Double = { w =>
     postPrices.find(w < _.w) match {
