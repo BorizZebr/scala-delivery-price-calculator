@@ -21,10 +21,10 @@ enablePlugins(JavaAppPackaging)
 
 unmanagedClasspath in Runtime += baseDirectory.value / "src" / "main" / "data"
 
-//mappings in Universal <++= sourceDirectory map { src =>
-//  Seq(
-//    src / "main" / "resources" / "prod.conf" -> "conf/application.conf",
-//    src / "main" / "data" / "packages.csv" -> "data/packages.csv")
-//}
-//
-//scriptClasspath := Seq("../conf/", "../data/") ++ scriptClasspath.value
+mappings in Universal <++= sourceDirectory map { src =>
+  Seq(
+    src / "main" / "resources" / "prod.conf" -> "conf/application.conf",
+    src / "main" / "data" / "packages.csv" -> "data/packages.csv")
+}
+
+scriptClasspath := Seq("../conf/", "../data/") ++ scriptClasspath.value
