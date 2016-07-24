@@ -46,7 +46,7 @@ trait DeliveryPriceService extends SprayJsonSupport
       post {
         entity(as[Package]) { pckg =>
           storePackage(pckg)
-          complete(OK, "ok!")
+          complete(OK, s"$pckg - ok!")
         }
       }
     } ~ path("models") {
@@ -59,7 +59,7 @@ trait DeliveryPriceService extends SprayJsonSupport
 object DeliveryPriceMicroService extends App
     with DeliveryPriceService
     with ModelsBuilder
-    with CsvPackagesRepo {
+    with PackagesRepo {
 
   override implicit val system = ActorSystem("delivery-price-system")
   override implicit val materializer = ActorMaterializer()
@@ -90,8 +90,8 @@ object DeliveryPriceMicroService extends App
   override def storePackage(pckg: Package): Unit = Future {
     storePackage(pckg.weight)
     models = rebuildModels(postConfigs, getPackages)
-
-    Thread.sleep(10000)
+  } onFailure {
+    case t => logger.error("ALARM!!! Trash in packages!! " + t.getMessage)
   }
 
   println(s"Reading models...")

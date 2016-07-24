@@ -31,7 +31,7 @@ trait ModelsBuilder {
   def buildPostModel(postPrices: Vector[Point]): Double => Double = { w =>
     postPrices.find(w < _.w) match {
       case Some(x) => x.p
-      case None => 0.0
+      case None => postPrices.last.p
     }
   }
 }
