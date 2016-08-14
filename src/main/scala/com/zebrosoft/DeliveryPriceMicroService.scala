@@ -17,7 +17,9 @@ import scala.io.StdIn
   * Created by borisbondarenko on 19.07.16.
   */
 trait DeliveryPriceService extends SprayJsonSupport
-    with DefaultJsonProtocol {
+    with DefaultJsonProtocol
+    with ModelsBuilder
+    with PackagesRepo {
 
   implicit val packageFormat = jsonFormat1(Package)
   implicit val priceResponseFormat = jsonFormat3(PriceResponse)
@@ -26,48 +28,7 @@ trait DeliveryPriceService extends SprayJsonSupport
   implicit def executor: ExecutionContextExecutor
 
   val logger: LoggingAdapter
-  var models: Map[String, PriceModel]
   def config: Config
-  def storePackage(pckg: Package)
-
-  val routes =
-    pathPrefix("price" / Segment / DoubleNumber) { (modelName, weight) =>
-      get {
-        models.get(modelName) match {
-          case Some(m) =>
-            val mPrice = if (weight > 0) m.calcModel(weight) else 0
-            val pPrice = if (weight > 0) m.postModel(weight) else 0
-            complete(PriceResponse(weight, mPrice, pPrice))
-
-          case None => complete(BadRequest, "There's no such model!")
-        }
-      }
-    } ~ pathPrefix("package") {
-      post {
-        entity(as[Package]) { pckg =>
-          storePackage(pckg)
-          complete(OK, s"$pckg - ok!")
-        }
-      }
-    } ~ path("models") {
-      get {
-        complete(models.keys)
-      }
-    }
-}
-
-object DeliveryPriceMicroService extends App
-    with DeliveryPriceService
-    with ModelsBuilder
-    with PackagesRepo {
-
-  override implicit val system = ActorSystem("delivery-price-system")
-  override implicit val materializer = ActorMaterializer()
-  override implicit val executor = system.dispatcher
-
-  override val pathPack: String = "packages.csv"
-  override val logger = Logging(system, getClass)
-  override val config = ConfigFactory.load()
 
   val postConfigs: Map[String, PostConfig] = {
     import scala.collection.JavaConversions._
@@ -85,14 +46,50 @@ object DeliveryPriceMicroService extends App
     }.toMap
   }
 
-  override var models: Map[String, PriceModel] = rebuildModels(postConfigs, getPackages)
+  var models: Map[String, PriceModel] = buildModels(postConfigs, getPackages)
 
-  override def storePackage(pckg: Package): Unit = Future {
+  def storePackageAndRebuildModels(pckg: Package): Unit = Future {
     storePackage(pckg.weight)
-    models = rebuildModels(postConfigs, getPackages)
+    models = buildModels(postConfigs, getPackages)
   } onFailure {
     case t => logger.error("ALARM!!! Trash in packages!! " + t.getMessage)
   }
+
+  val routes =
+    pathPrefix("price" / Segment / DoubleNumber) { (modelName, weight) =>
+      get {
+        models.get(modelName) match {
+          case Some(m) =>
+            val mPrice = if (weight > 0) m.calcModel(weight) else 0
+            val pPrice = if (weight > 0) m.postModel(weight) else 0
+            complete(PriceResponse(weight, mPrice, pPrice))
+
+          case None => complete(BadRequest, "There's no such model!")
+        }
+      }
+    } ~ pathPrefix("package") {
+      post {
+        entity(as[Package]) { pckg =>
+          storePackageAndRebuildModels(pckg)
+          complete(OK, s"$pckg - ok!")
+        }
+      }
+    } ~ path("models") {
+      get {
+        complete(models.keys)
+      }
+    }
+}
+
+object DeliveryPriceMicroService extends App
+    with DeliveryPriceService {
+
+  override implicit val system = ActorSystem("delivery-price-system")
+  override implicit val materializer = ActorMaterializer()
+  override implicit val executor = system.dispatcher
+
+  override val logger = Logging(system, getClass)
+  override val config = ConfigFactory.load()
 
   println(s"Reading models...")
   val interface = config.getString("http.interface")

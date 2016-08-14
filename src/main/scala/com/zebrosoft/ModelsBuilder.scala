@@ -5,7 +5,7 @@ package com.zebrosoft
   */
 trait ModelsBuilder {
 
-  def rebuildModels(configs: Map[String, PostConfig], packages: Vector[Double]): Map[String, PriceModel] =
+  def buildModels(configs: Map[String, PostConfig], packages: Vector[Double]): Map[String, PriceModel] =
     configs.map { case(name, PostConfig(fixedPoint, postPrices)) =>
       val postPriceFunction = buildPostModel(postPrices)
       val modelPriceFunction = buildCalcModel(fixedPoint, packages)(postPriceFunction)

@@ -97,7 +97,7 @@ class ModelsBuilderSpec extends FunSpec
       "first" -> PostConfig(Point(0.0, 0.0), Vector(Point(10.0, 10.0))),
       "second" -> PostConfig(Point(0.0, 0.0), Vector(Point(10.0, 10.0)))
     )
-    val models = rebuildModels(configs, packages)
+    val models = buildModels(configs, packages)
 
     it("should produce map of models") {
       assert(models.contains("first"))

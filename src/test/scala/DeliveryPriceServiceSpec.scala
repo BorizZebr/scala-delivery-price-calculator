@@ -11,17 +11,21 @@ import akka.http.scaladsl.model.ContentTypes._
 class DeliveryPriceServiceSpec extends FlatSpec
     with Matchers
     with ScalatestRouteTest
+    with TestModelsBuilder
+    with TestPackagesRepo
     with DeliveryPriceService {
 
   override def config = testConfig
   override val logger = NoLogging
-  override var models: Map[String, PriceModel] = Map(
-    "AZAZA" -> PriceModel((x: Double) => x * 2, (x: Double) => x * 4),
-    "OLOLO" -> PriceModel(_ => 100500, (x: Double) => x / 2))
 
-  var packagesStorage: Seq[Package] = Seq.empty
-  override def storePackage(pckg: Package): Unit =
-    packagesStorage = packagesStorage :+ pckg
+  it should "initialize models on bootstrap" in {
+    models shouldBe testModels
+  }
+
+  it should "initialize post models on bootstrap" in {
+    postConfigs should contain key "first"
+    postConfigs should contain key "second"
+  }
 
   it should "respond with correct value on correct price request" in {
     Get("/price/AZAZA/250") ~> routes ~> check {
@@ -63,6 +67,26 @@ class DeliveryPriceServiceSpec extends FlatSpec
       }
     }
     // Assert
-    assert(testPackages == packagesStorage)
+    testPackages shouldBe packagesStorage
   }
+}
+
+trait TestModelsBuilder extends ModelsBuilder {
+
+  val testModels = Map(
+    "AZAZA" -> PriceModel((x: Double) => x * 2, (x: Double) => x * 4),
+    "OLOLO" -> PriceModel(_ => 100500, (x: Double) => x / 2))
+
+  override def buildModels(configs: Map[String, PostConfig], packages: Vector[Double]) = testModels
+}
+
+trait TestPackagesRepo extends PackagesRepo {
+
+  var packagesStorage: Seq[Package] = Seq.empty
+
+  override def getPackages: Vector[Double] =
+    packagesStorage.map(_.weight).toVector
+
+  override def storePackage(w: Double): Unit =
+    packagesStorage = packagesStorage :+ Package(w)
 }

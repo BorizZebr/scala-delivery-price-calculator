@@ -8,13 +8,13 @@ import java.nio.file.{Files, Paths, StandardOpenOption}
   */
 trait PackagesRepo {
 
-  val pathPack: String
+  val pathPack: String = "packages.csv"
 
   def getPackages: Vector[Double] =
     Source.fromFile(getClass.getClassLoader.getResource(pathPack).toURI)
       .getLines
-      .toVector
       .map(_.toDouble)
+      .toVector
 
   def storePackage(w: Double): Unit = {
     val path = Paths.get(getClass.getClassLoader.getResource(pathPack).toURI)
