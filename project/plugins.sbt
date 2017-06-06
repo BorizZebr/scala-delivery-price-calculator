@@ -1,5 +1,5 @@
 logLevel := Level.Warn
 
-resolvers += Classpaths.sbtPluginReleases
+resolvers ++= Seq(Classpaths.sbtPluginReleases, Classpaths.sbtPluginSnapshots)
 
-addSbtPlugin("com.typesafe.sbt" %% "sbt-native-packager" % "1.1.4")
+addSbtPlugin("com.typesafe.sbt" %% "sbt-native-packager" % "1.2.0-M5")

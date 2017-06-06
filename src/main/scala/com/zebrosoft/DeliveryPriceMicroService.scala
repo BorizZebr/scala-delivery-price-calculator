@@ -89,18 +89,19 @@ object DeliveryPriceMicroService extends App
   override implicit val executor = system.dispatcher
 
   override val logger = Logging(system, getClass)
-  override val config = ConfigFactory.load()
+  override def config = ConfigFactory.load()
 
-  println(s"Reading models...")
+  //println(s"Reading models...")
   val interface = config.getString("http.interface")
   val port = config.getInt("http.port")
-  val bindingFuture = Http().bindAndHandle(routes, interface, port)
-  println(s"Delivery price service is online at http://$interface:$port/\nPress RETURN to stop...")
+  //val bindingFuture =
+  Http().bindAndHandle(routes, interface, port)
+  //println(s"Delivery price service is online at http://$interface:$port/\nPress RETURN to stop...")
 
-  StdIn.readLine()
-  bindingFuture
-    .flatMap(_.unbind())
-    .onComplete(_ => system.terminate())
-
-  println(s"Delivery price service is shut down!")
+//  StdIn.readLine()
+//  bindingFuture
+//    .flatMap(_.unbind())
+//    .onComplete(_ => system.terminate())
+//
+//  println(s"Delivery price service is shut down!")
 }
